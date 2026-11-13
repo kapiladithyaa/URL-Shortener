@@ -1,17 +1,20 @@
 package com.kapiladithyaa;
 
 import java.net.URI;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.stereotype.Service;
+
+@Service
 public class UrlStore {
 
-    private final Map<String, String> codeToUrl = new HashMap<>();
-    private final Map<String, String> urlToCode = new HashMap<>();
+    private final Map<String, String> codeToUrl = new ConcurrentHashMap<>();
+    private final Map<String, String> urlToCode = new ConcurrentHashMap<>();
 
     private long counter = 1;
 
-    public String shorten(String longUrl) {
+    public synchronized String shorten(String longUrl) {
 
         if (!isValidUrl(longUrl)) {
             throw new IllegalArgumentException("Invalid URL: " + longUrl);
@@ -36,7 +39,7 @@ public class UrlStore {
         String url = codeToUrl.get(code);
 
         if (url == null) {
-            throw new IllegalArgumentException("Code not found: " + code);
+            throw new CodeNotFoundException(code);
         }
 
         return url;
@@ -46,7 +49,6 @@ public class UrlStore {
 
         try {
             URI uri = new URI(url);
-
             String scheme = uri.getScheme();
 
             return uri.getHost() != null
