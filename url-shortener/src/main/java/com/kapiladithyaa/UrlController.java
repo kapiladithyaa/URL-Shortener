@@ -33,9 +33,8 @@ public class UrlController {
                 .body(new ShortenResponse(code, shortUrl));
     }
 
-    @GetMapping("/{code}")
-    public ResponseEntity<Void> redirect(
-            @PathVariable String code) {
+    @GetMapping("/{code:[0-9a-zA-Z]+}")
+    public ResponseEntity<Void> redirect(@PathVariable String code) {
 
         String url = store.resolve(code);
 

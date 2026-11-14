@@ -1,48 +1,56 @@
 package com.kapiladithyaa;
 
 import java.net.URI;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UrlStore {
 
-    private final Map<String, String> codeToUrl = new ConcurrentHashMap<>();
-    private final Map<String, String> urlToCode = new ConcurrentHashMap<>();
+    private final UrlMappingRepository repository;
 
-    private long counter = 1;
+    public UrlStore(UrlMappingRepository repository) {
+        this.repository = repository;
+    }
 
-    public synchronized String shorten(String longUrl) {
+    @Transactional
+    public String shorten(String longUrl) {
 
         if (!isValidUrl(longUrl)) {
             throw new IllegalArgumentException("Invalid URL: " + longUrl);
         }
 
-        String existing = urlToCode.get(longUrl);
+        return repository.findByLongUrl(longUrl)
+                .map(UrlMapping::getCode)
+                .orElseGet(() -> create(longUrl));
+    }
 
-        if (existing != null) {
-            return existing;
-        }
+    private String create(String longUrl) {
 
-        String code = Base62.encode(counter++);
+        // First save: generates the database ID
+        UrlMapping saved = repository.saveAndFlush(
+                new UrlMapping(longUrl)
+        );
 
-        codeToUrl.put(code, longUrl);
-        urlToCode.put(longUrl, code);
+        // Generate the short code from the generated ID
+        String code = Base62.encode(saved.getId());
+
+        // Set the code
+        saved.setCode(code);
+
+        // Second save: explicitly persist the generated code
+        repository.saveAndFlush(saved);
 
         return code;
     }
 
+    @Transactional(readOnly = true)
     public String resolve(String code) {
 
-        String url = codeToUrl.get(code);
-
-        if (url == null) {
-            throw new CodeNotFoundException(code);
-        }
-
-        return url;
+        return repository.findByCode(code)
+                .map(UrlMapping::getLongUrl)
+                .orElseThrow(() -> new CodeNotFoundException(code));
     }
 
     private boolean isValidUrl(String url) {
